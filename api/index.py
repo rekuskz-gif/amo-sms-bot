@@ -7,28 +7,27 @@ from http.server import BaseHTTPRequestHandler
 P1SMS_API_KEY = os.environ.get("P1SMS_API_KEY")
 P1SMS_SENDER = os.environ.get("P1SMS_SENDER", "SMS")
 AMO_TOKEN = os.environ.get("AMO_TOKEN")
-AMO_DOMAIN = os.environ.get("AMO_DOMAIN", "kazafkz.amocrm.ru")
+AMO_DOMAIN = os.environ.get("AMO_DOMAIN", "kazafkz.kommo.com")
 
 def get_phone_by_lead_id(lead_id):
     headers = {"Authorization": f"Bearer {AMO_TOKEN}"}
     
-    # Получаем контакты сделки
-    url = f"https://{AMO_DOMAIN}/api/v4/leads/{lead_id}/contacts"
+    url = f"https://{AMO_DOMAIN}/api/v4/leads/{lead_id}?with=contacts"
     r = requests.get(url, headers=headers)
-    print(f"CONTACTS RESPONSE: {r.status_code} {r.text[:500]}")
+    print(f"LEAD RESPONSE: {r.status_code} {r.text[:500]}")
     
     if r.status_code != 200:
         return None
     
     data = r.json()
-    contacts = data.get("_embedded", {}).get("contacts", [])
+    contacts = data.get("_embedded", {}).get("contacts", []) or []
     
     if not contacts:
         return None
     
     contact_id = contacts[0]["id"]
+    print(f"CONTACT ID: {contact_id}")
     
-    # Получаем данные контакта
     url2 = f"https://{AMO_DOMAIN}/api/v4/contacts/{contact_id}"
     r2 = requests.get(url2, headers=headers)
     print(f"CONTACT DETAIL: {r2.status_code} {r2.text[:500]}")
@@ -72,10 +71,9 @@ class handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8")
         flat = parse_qs(body)
         
-        # Берём ID сделки
         lead_id = None
         for key, values in flat.items():
-            if "leads" in key and "id" in key and "status_id" not in key and "pipeline" not in key:
+            if "leads" in key and key.endswith("[id]"):
                 lead_id = values[0]
                 break
         
