@@ -59,18 +59,26 @@ class handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
         flat = parse_qs(body)
+
+        # Берём текст из параметра если передан, иначе дефолтный
+        text = flat.get("sms_text", [None])[0]
+        if not text:
+            text = "Большое спасибо! Ждем ваш отзыв: https://share.google/R07PQVBPZPRHzZ8bK"
+
         lead_id = None
         for key, values in flat.items():
             if "leads" in key and key.endswith("[id]"):
                 lead_id = values[0]
                 break
+
         print(f"LEAD ID: {lead_id}")
+
         if lead_id:
             phone = get_phone_by_lead_id(lead_id)
             print(f"PHONE: {phone}")
             if phone:
-                text = "Ваша заявка принята. Менеджер свяжется с вами в ближайшее время."
                 send_sms(phone, text)
+
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
