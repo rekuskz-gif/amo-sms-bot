@@ -8,15 +8,15 @@ P1SMS_API_KEY = os.environ.get("P1SMS_API_KEY")
 P1SMS_SENDER = os.environ.get("P1SMS_SENDER", "SMS")
 
 def send_sms(phone: str, text: str):
-    phone = phone.strip().replace("+", "").replace(" ", "").replace("-", "")
-    if phone.startswith("8"):
-        phone = "7" + phone[1:]
+    digits = ''.join(filter(str.isdigit, phone))
+    if digits.startswith("8"):
+        digits = "7" + digits[1:]
     payload = {
         "apiKey": P1SMS_API_KEY,
         "sms": [{
             "channel": "char",
             "sender": P1SMS_SENDER,
-            "phone": phone,
+            "phone": digits,
             "text": text
         }]
     }
@@ -27,36 +27,43 @@ def send_sms(phone: str, text: str):
     )
     return response.json()
 
-def extract_phones(data):
-    phones = []
-    for key, values in data.items():
-        if "phone" in key.lower():
-            for v in values:
-                if v and len(v) >= 10:
-                    phones.append(v)
-    return phones
-
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
         
-        # Парсим form-urlencoded от amoCRM
-        data = parse_qs(body)
+        # Логируем что пришло от amoCRM
+        print("=== BODY FROM AMOCRM ===")
+        print(body[:2000])
+        print("========================")
         
-        phones = extract_phones(data)
+        flat = parse_qs(body)
         
-        if phones:
-            for phone in phones[:1]:  # Отправляем только первому
-                text = "Ваша заявка принята. Менеджер свяжется с вами в ближайшее время."
-                send_sms(phone, text)
-            self.send_response(200)
-        else:
-            self.send_response(200)  # Возвращаем 200 чтобы amoCRM не отключал хук
+        # Логируем все ключи
+        print("=== KEYS ===")
+        for key in flat.keys():
+            print(f"{key} = {flat[key]}")
+        print("============")
         
+        # Ищем телефон среди всех значений
+        phone = None
+        for key, values in flat.items():
+            for v in values:
+                digits = ''.join(filter(str.isdigit, v))
+                if 10 <= len(digits) <= 12:
+                    phone = v
+                    print(f"FOUND PHONE: {phone} in key: {key}")
+                    break
+
+        if phone:
+            text = "Ваша заявка принята. Менеджер свяжется с вами в ближайшее время."
+            result = send_sms(phone, text)
+            print(f"P1SMS RESPONSE: {result}")
+
+        self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"ok": True}).encode())
+        self.wfile.write(json.dumps({"ok": True, "phone": phone}).encode())
 
     def do_GET(self):
         self.send_response(200)
