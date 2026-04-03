@@ -5,43 +5,33 @@ from urllib.parse import parse_qs
 from http.server import BaseHTTPRequestHandler
 
 P1SMS_API_KEY = os.environ.get("P1SMS_API_KEY")
-P1SMS_SENDER = os.environ.get("P1SMS_SENDER", "SMS")
 AMO_TOKEN = os.environ.get("AMO_TOKEN")
-AMO_DOMAIN = os.environ.get("AMO_DOMAIN", "kazafkz.kommo.com")
+AMO_DOMAIN = os.environ.get("AMO_DOMAIN", "kazafkz.amocrm.ru")
 
 def get_phone_by_lead_id(lead_id):
     headers = {"Authorization": f"Bearer {AMO_TOKEN}"}
-    
     url = f"https://{AMO_DOMAIN}/api/v4/leads/{lead_id}?with=contacts"
     r = requests.get(url, headers=headers)
     print(f"LEAD RESPONSE: {r.status_code} {r.text[:500]}")
-    
     if r.status_code != 200:
         return None
-    
     data = r.json()
     contacts = data.get("_embedded", {}).get("contacts", []) or []
-    
     if not contacts:
         return None
-    
     contact_id = contacts[0]["id"]
     print(f"CONTACT ID: {contact_id}")
-    
     url2 = f"https://{AMO_DOMAIN}/api/v4/contacts/{contact_id}"
     r2 = requests.get(url2, headers=headers)
     print(f"CONTACT DETAIL: {r2.status_code} {r2.text[:500]}")
-    
     if r2.status_code != 200:
         return None
-    
     contact = r2.json()
     for field in contact.get("custom_fields_values", []) or []:
         if field.get("field_code") == "PHONE":
             values = field.get("values", [])
             if values:
                 return values[0].get("value")
-    
     return None
 
 def send_sms(phone: str, text: str):
@@ -51,8 +41,7 @@ def send_sms(phone: str, text: str):
     payload = {
         "apiKey": P1SMS_API_KEY,
         "sms": [{
-            "channel": "char",
-            "sender": P1SMS_SENDER,
+            "channel": "digit",
             "phone": digits,
             "text": text
         }]
@@ -70,26 +59,22 @@ class handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8")
         flat = parse_qs(body)
-        
         lead_id = None
         for key, values in flat.items():
             if "leads" in key and key.endswith("[id]"):
                 lead_id = values[0]
                 break
-        
         print(f"LEAD ID: {lead_id}")
-        
         if lead_id:
             phone = get_phone_by_lead_id(lead_id)
             print(f"PHONE: {phone}")
             if phone:
                 text = "Ваша заявка принята. Менеджер свяжется с вами в ближайшее время."
                 send_sms(phone, text)
-
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"ok": True, "lead_id": lead_id}).encode())
+        self.wfile.write(json.dumps({"ok": True}).encode())
 
     def do_GET(self):
         self.send_response(200)
