@@ -44,7 +44,8 @@ def send_sms(phone: str, text: str):
             "channel": "char",
             "sender": "VIRTA",
             "phone": digits,
-            "text": text
+            "text": text,
+            "tag": "spasibo3"
         }]
     }
     response = requests.post(
