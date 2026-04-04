@@ -41,4 +41,44 @@ def send_sms(phone: str, text: str):
     payload = {
         "apiKey": P1SMS_API_KEY,
         "sms": [{
-            "channel": "cha
+            "channel": "char",
+            "sender": "VIRTA",
+            "phone": digits,
+            "text": text
+        }]
+    }
+    response = requests.post(
+        "https://admin.p1sms.kz/apiSms/create",
+        json=payload,
+        headers={"Content-Type": "application/json"}
+    )
+    print(f"P1SMS RESPONSE: {response.text}")
+    return response.json()
+
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode("utf-8")
+        flat = parse_qs(body)
+        lead_id = None
+        for key, values in flat.items():
+            if "leads" in key and key.endswith("[id]"):
+                lead_id = values[0]
+                break
+        print(f"LEAD ID: {lead_id}")
+        if lead_id:
+            phone = get_phone_by_lead_id(lead_id)
+            print(f"PHONE: {phone}")
+            if phone:
+                text = "Большое спасибо! Ждем ваш отзыв: https://share.google/R07PQVBPZPRHzZ8bK"
+                send_sms(phone, text)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"ok": True}).encode())
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "ok"}).encode())
